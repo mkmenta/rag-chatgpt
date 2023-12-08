@@ -3,7 +3,13 @@ import utils
 import streamlit as st
 from streaming import StreamHandler
 from langchain.callbacks import StreamlitCallbackHandler
-
+from langchain.chains import LLMChain
+from langchain.prompts import (
+    ChatPromptTemplate,
+    HumanMessagePromptTemplate,
+    MessagesPlaceholder,
+    SystemMessagePromptTemplate,
+)
 
 from langchain.chat_models import ChatOpenAI
 from langchain.document_loaders import PyPDFLoader
@@ -54,12 +60,26 @@ class StreamlitChatView:
 
 def setup_memory():
     msgs = StreamlitChatMessageHistory(key="special_app_key")
-    return ConversationBufferMemory(memory_key="history", chat_memory=msgs)
+    return ConversationBufferMemory(memory_key="history", chat_memory=msgs, return_messages=True)
 
 
 def setup_chain(llm, memory, inject_knowledge, retriever):
     if not inject_knowledge:
-        return ConversationChain(llm=llm, memory=memory, verbose=True)
+        prompt = ChatPromptTemplate(
+            messages=[
+                SystemMessagePromptTemplate.from_template(
+                    "You are a nice chatbot having a conversation with a human."
+                ),
+                # The `variable_name` here is what must align with memory
+                MessagesPlaceholder(variable_name="history"),
+                HumanMessagePromptTemplate.from_template("{query}"),
+            ]
+        )
+
+        # Notice that we `return_messages=True` to fit into the MessagesPlaceholder
+        # Notice that `"chat_history"` aligns with the MessagesPlaceholder name
+        return LLMChain(llm=llm, prompt=prompt, verbose=True, memory=memory)
+        # return ConversationChain(llm=llm, memory=memory, verbose=True)
     else:
         return ConversationalRetrievalChain.from_llm(llm, retriever=retriever, memory=memory, verbose=True)
 
@@ -81,4 +101,4 @@ for message in memory.chat_memory.messages:
 if view.user_query:
     view.add_message(view.user_query, "user")
     st_callback = view.add_message_stream("assistant")
-    chain.run(view.user_query, callbacks=[st_callback])
+    chain.run({"query": view.user_query}, callbacks=[st_callback])
