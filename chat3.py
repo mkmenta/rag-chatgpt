@@ -2,6 +2,8 @@ import os
 import utils
 import streamlit as st
 from streaming import StreamHandler
+from langchain.callbacks import StreamlitCallbackHandler
+
 
 from langchain.chat_models import ChatOpenAI
 from langchain.document_loaders import PyPDFLoader
@@ -45,7 +47,9 @@ class StreamlitChatView:
         with st.chat_message(author):
             st.markdown(message)
 
-    # TODO: def add_message_stream
+    def add_message_stream(self, author: str):
+        assert author in ["user", "assistant"]
+        return StreamHandler(st.chat_message(author).empty())
 
 
 def setup_memory():
@@ -60,17 +64,21 @@ def setup_chain(llm, memory, inject_knowledge, retriever):
         return ConversationalRetrievalChain.from_llm(llm, retriever=retriever, memory=memory, verbose=True)
 
 
+# Setup
 load_dotenv()
 view = StreamlitChatView("data")
 memory = setup_memory()
 retriever = None
 if view.inject_knowledge:
     retriever = load_knowledge(view.knowledge).as_retriever()
-chain = setup_chain(ChatOpenAI(), memory, view.inject_knowledge, retriever)
+chain = setup_chain(ChatOpenAI(streaming=True), memory, view.inject_knowledge, retriever)
+
 # Display previous messages
 for message in memory.chat_memory.messages:
     view.add_message(message.content, 'assistant' if message.type == 'ai' else 'user')
+
+# Send message
 if view.user_query:
     view.add_message(view.user_query, "user")
-    response = chain.run(view.user_query)  # , callbacks=[st_cb])
-    view.add_message(response, "assistant")
+    st_callback = view.add_message_stream("assistant")
+    response = chain.run(view.user_query, callbacks=[st_callback])
