@@ -81,4 +81,4 @@ for message in memory.chat_memory.messages:
 if view.user_query:
     view.add_message(view.user_query, "user")
     st_callback = view.add_message_stream("assistant")
-    response = chain.run(view.user_query, callbacks=[st_callback])
+    chain.run(view.user_query, callbacks=[st_callback])
