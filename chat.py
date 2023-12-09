@@ -62,7 +62,7 @@ def setup_chain(llm, memory, inject_knowledge, retriever):
             verbose=True)
 
 
-STREAM = False
+STREAM = True
 
 # Setup
 load_dotenv()

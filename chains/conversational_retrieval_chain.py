@@ -1,26 +1,16 @@
 from __future__ import annotations
-from langchain.callbacks.manager import (
-    AsyncCallbackManagerForChainRun,
-    CallbackManagerForChainRun,
-    Callbacks,
-)
-from pydantic import Extra
-from langchain.schema.language_model import BaseLanguageModel
-from langchain.prompts.base import BasePromptTemplate
-from langchain.chains.combine_documents.base import BaseCombineDocumentsChain
-from langchain.chains.combine_documents.stuff import StuffDocumentsChain
-from typing import Any, Dict, List, Optional
-from typing import Any, Dict, Optional
-from langchain import LLMChain
-from langchain.chains.base import Chain
 
-from langchain.prompts import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    MessagesPlaceholder,
-    SystemMessagePromptTemplate,
-)
+from typing import Any, Dict, List, Optional
+
+from langchain.callbacks.manager import (AsyncCallbackManagerForChainRun,
+                                         CallbackManagerForChainRun)
+from langchain.chains.base import Chain
+from langchain.prompts import (ChatPromptTemplate, HumanMessagePromptTemplate,
+                               MessagesPlaceholder,
+                               SystemMessagePromptTemplate)
 from langchain.schema import BaseRetriever
+from langchain.schema.language_model import BaseLanguageModel
+from pydantic import Extra
 
 TEMPLATE = (
     "Question: {question}\n\n"
@@ -112,9 +102,25 @@ class ConversationalRetrievalChain(Chain):
         inputs: Dict[str, Any],
         run_manager: Optional[AsyncCallbackManagerForChainRun] = None,
     ) -> Dict[str, str]:
+        prompt = ChatPromptTemplate(
+            messages=[
+                SystemMessagePromptTemplate.from_template(self.system_message),
+                # The `variable_name` here is what must align with memory
+                MessagesPlaceholder(variable_name=self.memory.memory_key),
+                HumanMessagePromptTemplate.from_template(self.context_prompt),
+            ]
+        )
+
+        # TODO maybe it makes sense to use the vectorstore directly with a k
+        docs = await self.retriever.aget_relevant_documents(
+            inputs['question'], callbacks=run_manager.get_child()
+        )
+        inputs = inputs.copy()
+        inputs['context'] = "\n\n".join([doc.page_content for doc in docs])
+
         # Your custom chain logic goes here
         # This is just an example that mimics LLMChain
-        prompt_value = self.prompt.format_prompt(**inputs)
+        prompt_value = prompt.format_prompt(**inputs)
 
         # Whenever you call a language model, or another chain, you should pass
         # a callback manager to it. This allows the inner run to be tracked by
@@ -128,8 +134,8 @@ class ConversationalRetrievalChain(Chain):
         # If you want to log something about this run, you can do so by calling
         # methods on the `run_manager`, as shown below. This will trigger any
         # callbacks that are registered for that event.
-        if run_manager:
-            await run_manager.on_text("Log something about this run")
+        # if run_manager:
+        #     run_manager.on_text("Log something about this run")
 
         return {self.output_key: response.generations[0][0].text}
 
