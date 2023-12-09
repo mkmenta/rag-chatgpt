@@ -1,9 +1,9 @@
 import os
 
+from langchain.document_loaders import PyPDFLoader, TextLoader
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.document_loaders import TextLoader, PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
+from langchain.vectorstores import FAISS
 
 
 def compute_knowledge_vectorstore(name: str, embeddings, base_path: str = "data"):

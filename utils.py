@@ -1,8 +1,6 @@
 import os
-import random
-import streamlit as st
 
-# decorator
+import streamlit as st
 
 
 def enable_chat_history(func):

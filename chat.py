@@ -1,35 +1,16 @@
 import os
-from chains.conversational_chain import ConversationalChain
-from chains.conversational_retrieval_chain import ConversationalRetrievalChain
-import utils
-import streamlit as st
-from streaming import StreamHandler
-from langchain.callbacks import StreamlitCallbackHandler
-from langchain.chains import LLMChain
-from langchain.prompts import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    MessagesPlaceholder,
-    SystemMessagePromptTemplate,
-)
 
-from langchain.chat_models import ChatOpenAI
-from langchain.document_loaders import PyPDFLoader
-from langchain.memory import ConversationBufferMemory, StreamlitChatMessageHistory
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import DocArrayInMemorySearch
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 import streamlit as st
-import random
-import time
-import os
+from dotenv import load_dotenv
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts import ChatPromptTemplate
-from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import RunnablePassthrough
-from dotenv import load_dotenv
+from langchain.memory import (ConversationBufferMemory,
+                              StreamlitChatMessageHistory)
+
+from chains.conversational_chain import ConversationalChain
+from chains.conversational_retrieval_chain import ConversationalRetrievalChain
 from knowledge_set import compute_knowledge_vectorstore
+from streaming import StreamHandler
 
 
 @st.cache_resource(show_spinner=True)
