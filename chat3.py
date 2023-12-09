@@ -1,5 +1,6 @@
 import os
 from chains.conversational_chain import ConversationalChain
+from chains.conversational_retrieval_chain import ConversationalRetrievalChain
 import utils
 import streamlit as st
 from streaming import StreamHandler
@@ -16,7 +17,6 @@ from langchain.chat_models import ChatOpenAI
 from langchain.document_loaders import PyPDFLoader
 from langchain.memory import ConversationBufferMemory, StreamlitChatMessageHistory
 from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.chains import ConversationalRetrievalChain, ConversationChain
 from langchain.vectorstores import DocArrayInMemorySearch
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import streamlit as st
@@ -64,28 +64,6 @@ def setup_memory():
     return ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, return_messages=True)
 
 
-# def setup_chain(llm, memory, inject_knowledge, retriever, mode='lc'):
-#     assert mode in ['custom', 'lc']
-#     if inject_knowledge and mode == 'lc':
-#         return ConversationalRetrievalChain.from_llm(llm, retriever=retriever, memory=memory, verbose=True)
-#     messages = [
-#         SystemMessagePromptTemplate.from_template(
-#             "You are a nice chatbot having a conversation with a human."
-#         ),
-#         # The `variable_name` here is what must align with memory
-#         MessagesPlaceholder(variable_name="chat_history"),
-#     ]
-#     if not inject_knowledge:
-#         messages.append(HumanMessagePromptTemplate.from_template("{question}"))
-#     else:
-#         messages.append(HumanMessagePromptTemplate.from_template(
-#             "{question}"
-#         ))
-#     prompt = ChatPromptTemplate(messages=messages)
-#     # Notice that we `return_messages=True` to fit into the MessagesPlaceholder
-#     # Notice that `"chat_history"` aligns with the MessagesPlaceholder name
-#     return LLMChain(llm=llm, prompt=prompt, verbose=True, memory=memory)
-
 def setup_chain(llm, memory, inject_knowledge, retriever):
     if not inject_knowledge:
         # Custom conversational chain
@@ -95,7 +73,12 @@ def setup_chain(llm, memory, inject_knowledge, retriever):
             system_message="You are a nice chatbot having a conversation with a human.",
             verbose=True)
     else:
-        return ConversationalRetrievalChain.from_llm(llm, retriever=retriever, memory=memory, verbose=True)
+        return ConversationalRetrievalChain(
+            llm=llm,
+            retriever=retriever,
+            memory=memory,
+            system_message="You are a nice chatbot having a conversation with a human.",
+            verbose=True)
 
 
 STREAM = False
