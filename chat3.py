@@ -42,7 +42,7 @@ class StreamlitChatView:
         st.set_page_config(page_title="RAG ChatGPT", page_icon="📚", layout="wide")
 
         with st.sidebar:
-            self.inject_knowledge = st.checkbox("Inject knowledge", value=False)
+            self.inject_knowledge = st.checkbox("Inject knowledge", value=True)
             knowledge_names = [fn for fn in os.listdir(knowledge_folder)
                                if os.path.isdir(os.path.join(knowledge_folder, fn))]
             self.knowledge = st.selectbox("Select a knowledge folder:", knowledge_names)
@@ -59,9 +59,31 @@ class StreamlitChatView:
 
 
 def setup_memory():
-    msgs = StreamlitChatMessageHistory(key="special_app_key")
-    return ConversationBufferMemory(memory_key="history", chat_memory=msgs, return_messages=True)
+    msgs = StreamlitChatMessageHistory(key="langchain_messages")
+    return ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, return_messages=True)
 
+
+# def setup_chain(llm, memory, inject_knowledge, retriever, mode='lc'):
+#     assert mode in ['custom', 'lc']
+#     if inject_knowledge and mode == 'lc':
+#         return ConversationalRetrievalChain.from_llm(llm, retriever=retriever, memory=memory, verbose=True)
+#     messages = [
+#         SystemMessagePromptTemplate.from_template(
+#             "You are a nice chatbot having a conversation with a human."
+#         ),
+#         # The `variable_name` here is what must align with memory
+#         MessagesPlaceholder(variable_name="chat_history"),
+#     ]
+#     if not inject_knowledge:
+#         messages.append(HumanMessagePromptTemplate.from_template("{question}"))
+#     else:
+#         messages.append(HumanMessagePromptTemplate.from_template(
+#             "{question}"
+#         ))
+#     prompt = ChatPromptTemplate(messages=messages)
+#     # Notice that we `return_messages=True` to fit into the MessagesPlaceholder
+#     # Notice that `"chat_history"` aligns with the MessagesPlaceholder name
+#     return LLMChain(llm=llm, prompt=prompt, verbose=True, memory=memory)
 
 def setup_chain(llm, memory, inject_knowledge, retriever):
     if not inject_knowledge:
@@ -71,8 +93,8 @@ def setup_chain(llm, memory, inject_knowledge, retriever):
                     "You are a nice chatbot having a conversation with a human."
                 ),
                 # The `variable_name` here is what must align with memory
-                MessagesPlaceholder(variable_name="history"),
-                HumanMessagePromptTemplate.from_template("{query}"),
+                MessagesPlaceholder(variable_name="chat_history"),
+                HumanMessagePromptTemplate.from_template("{question}"),
             ]
         )
 
@@ -84,6 +106,8 @@ def setup_chain(llm, memory, inject_knowledge, retriever):
         return ConversationalRetrievalChain.from_llm(llm, retriever=retriever, memory=memory, verbose=True)
 
 
+STREAM = False
+
 # Setup
 load_dotenv()
 view = StreamlitChatView("data")
@@ -91,7 +115,7 @@ memory = setup_memory()
 retriever = None
 if view.inject_knowledge:
     retriever = load_knowledge(view.knowledge).as_retriever()
-chain = setup_chain(ChatOpenAI(streaming=True), memory, view.inject_knowledge, retriever)
+chain = setup_chain(ChatOpenAI(streaming=STREAM), memory, view.inject_knowledge, retriever)
 
 # Display previous messages
 for message in memory.chat_memory.messages:
@@ -100,5 +124,9 @@ for message in memory.chat_memory.messages:
 # Send message
 if view.user_query:
     view.add_message(view.user_query, "user")
-    st_callback = view.add_message_stream("assistant")
-    chain.run({"query": view.user_query}, callbacks=[st_callback])
+    if STREAM:
+        st_callback = view.add_message_stream("assistant")
+        chain.run({"question": view.user_query}, callbacks=[st_callback])
+    else:
+        response = chain.run({"question": view.user_query})
+        view.add_message(response, "assistant")
