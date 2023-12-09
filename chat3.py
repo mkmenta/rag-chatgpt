@@ -1,4 +1,5 @@
 import os
+from chains.conversational_chain import ConversationalChain
 import utils
 import streamlit as st
 from streaming import StreamHandler
@@ -87,21 +88,12 @@ def setup_memory():
 
 def setup_chain(llm, memory, inject_knowledge, retriever):
     if not inject_knowledge:
-        prompt = ChatPromptTemplate(
-            messages=[
-                SystemMessagePromptTemplate.from_template(
-                    "You are a nice chatbot having a conversation with a human."
-                ),
-                # The `variable_name` here is what must align with memory
-                MessagesPlaceholder(variable_name="chat_history"),
-                HumanMessagePromptTemplate.from_template("{question}"),
-            ]
-        )
-
-        # Notice that we `return_messages=True` to fit into the MessagesPlaceholder
-        # Notice that `"chat_history"` aligns with the MessagesPlaceholder name
-        return LLMChain(llm=llm, prompt=prompt, verbose=True, memory=memory)
-        # return ConversationChain(llm=llm, memory=memory, verbose=True)
+        # Custom conversational chain
+        return ConversationalChain(
+            llm=llm,
+            memory=memory,
+            system_message="You are a nice chatbot having a conversation with a human.",
+            verbose=True)
     else:
         return ConversationalRetrievalChain.from_llm(llm, retriever=retriever, memory=memory, verbose=True)
 
