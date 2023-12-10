@@ -1,3 +1,4 @@
+import datetime
 import os
 
 import streamlit as st
@@ -8,7 +9,8 @@ from langchain.memory import (ConversationBufferMemory,
                               StreamlitChatMessageHistory)
 
 from chains.conversational_chain import ConversationalChain
-from chains.conversational_retrieval_chain import ConversationalRetrievalChain
+from chains.conversational_retrieval_chain import (
+    TEMPLATE, ConversationalRetrievalChain)
 from knowledge_set import compute_knowledge_vectorstore
 from streaming import StreamHandler
 
@@ -22,8 +24,23 @@ def load_knowledge(knowledge):
 class StreamlitChatView:
     def __init__(self, knowledge_folder: str) -> None:
         st.set_page_config(page_title="RAG ChatGPT", page_icon="📚", layout="wide")
-
         with st.sidebar:
+            st.title("RAG ChatGPT")
+            with st.expander("Model parameters"):
+                self.model_name = st.selectbox("Model:", ["gpt-3.5-turbo", "gpt-4"])
+                self.temperature = st.slider("Temperature", min_value=0., max_value=2., value=0.7, step=0.01)
+                self.top_p = st.slider("Top p", min_value=0., max_value=1., value=1., step=0.01)
+                self.frequency_penalty = st.slider("Frequency penalty", min_value=0., max_value=2., value=0., step=0.01)
+                self.presence_penalty = st.slider("Presence penalty", min_value=0., max_value=2., value=0., step=0.01)
+            with st.expander("Prompts"):
+                curdate = datetime.datetime.now().strftime("%Y-%m-%d")
+                model_name = self.model_name.replace('-turbo', '').upper()
+                system_message = (f"You are ChatGPT, a large language model trained by OpenAI, "
+                                  f"based on the {model_name} architecture.\n"
+                                  f"Knowledge cutoff: 2021-09\n"
+                                  f"Current date: {curdate}\n")
+                self.system_message = st.text_area("System message", value=system_message)
+                self.context_prompt = st.text_area("Context prompt", value=TEMPLATE)
             self.inject_knowledge = st.checkbox("Inject knowledge", value=True)
             knowledge_names = [fn for fn in os.listdir(knowledge_folder)
                                if os.path.isdir(os.path.join(knowledge_folder, fn))]
@@ -45,24 +62,25 @@ def setup_memory():
     return ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, return_messages=True)
 
 
-def setup_chain(llm, memory, inject_knowledge, retriever):
+def setup_chain(llm, memory, inject_knowledge, system_message, context_prompt, retriever):
     if not inject_knowledge:
         # Custom conversational chain
         return ConversationalChain(
             llm=llm,
             memory=memory,
-            system_message="You are a nice chatbot having a conversation with a human.",
+            system_message=system_message,
             verbose=True)
     else:
         return ConversationalRetrievalChain(
             llm=llm,
             retriever=retriever,
             memory=memory,
-            system_message="You are a nice chatbot having a conversation with a human.",
+            system_message=system_message,
+            context_prompt=context_prompt,
             verbose=True)
 
 
-STREAM = True
+STREAM = False
 
 # Setup
 load_dotenv()
@@ -71,7 +89,16 @@ memory = setup_memory()
 retriever = None
 if view.inject_knowledge:
     retriever = load_knowledge(view.knowledge).as_retriever()
-chain = setup_chain(ChatOpenAI(streaming=STREAM), memory, view.inject_knowledge, retriever)
+llm = ChatOpenAI(
+    streaming=STREAM,
+    model_name=view.model_name,
+    temperature=view.temperature,
+    top_p=view.top_p,
+    frequency_penalty=view.frequency_penalty,
+    presence_penalty=view.presence_penalty)
+chain = setup_chain(llm=llm, memory=memory, inject_knowledge=view.inject_knowledge,
+                    retriever=retriever, system_message=view.system_message,
+                    context_prompt=view.context_prompt)
 
 # Display previous messages
 for message in memory.chat_memory.messages:
