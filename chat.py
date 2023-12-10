@@ -13,12 +13,22 @@ from chains.conversational_retrieval_chain import (
     TEMPLATE, ConversationalRetrievalChain)
 from knowledge_set import compute_knowledge_vectorstore
 from streaming import StreamHandler
+from utils import get_available_openai_models
 
 
 @st.cache_resource(show_spinner=True)
-# @st.spinner('Loading knowledge..')
-def load_knowledge(knowledge):
-    return compute_knowledge_vectorstore(knowledge, OpenAIEmbeddings())
+def load_knowledge(knowledge, model_name):
+    return compute_knowledge_vectorstore(knowledge, OpenAIEmbeddings(model=model_name))
+
+
+@st.cache_data
+def chat_model_list():
+    return get_available_openai_models(put_first='gpt-3.5-turbo', filter_by='gpt')
+
+
+@st.cache_data
+def embedding_model_list():
+    return get_available_openai_models(filter_by='embedding')
 
 
 class StreamlitChatView:
@@ -27,7 +37,7 @@ class StreamlitChatView:
         with st.sidebar:
             st.title("RAG ChatGPT")
             with st.expander("Model parameters"):
-                self.model_name = st.selectbox("Model:", ["gpt-3.5-turbo", "gpt-4"])
+                self.model_name = st.selectbox("Model:", options=chat_model_list())
                 self.temperature = st.slider("Temperature", min_value=0., max_value=2., value=0.7, step=0.01)
                 self.top_p = st.slider("Top p", min_value=0., max_value=1., value=1., step=0.01)
                 self.frequency_penalty = st.slider("Frequency penalty", min_value=0., max_value=2., value=0., step=0.01)
@@ -41,6 +51,8 @@ class StreamlitChatView:
                                   f"Current date: {curdate}\n")
                 self.system_message = st.text_area("System message", value=system_message)
                 self.context_prompt = st.text_area("Context prompt", value=TEMPLATE)
+            with st.expander("Embeddings parameters"):
+                self.embeddings_model_name = st.selectbox("Embeddings model:", options=embedding_model_list())
             self.inject_knowledge = st.checkbox("Inject knowledge", value=True)
             knowledge_names = [fn for fn in os.listdir(knowledge_folder)
                                if os.path.isdir(os.path.join(knowledge_folder, fn))]
@@ -80,7 +92,7 @@ def setup_chain(llm, memory, inject_knowledge, system_message, context_prompt, r
             verbose=True)
 
 
-STREAM = False
+STREAM = True
 
 # Setup
 load_dotenv()
@@ -88,7 +100,7 @@ view = StreamlitChatView("data")
 memory = setup_memory()
 retriever = None
 if view.inject_knowledge:
-    retriever = load_knowledge(view.knowledge).as_retriever()
+    retriever = load_knowledge(view.knowledge, model_name=view.embeddings_model_name).as_retriever()
 llm = ChatOpenAI(
     streaming=STREAM,
     model_name=view.model_name,
