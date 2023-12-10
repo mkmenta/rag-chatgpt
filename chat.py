@@ -1,5 +1,6 @@
 import datetime
 import os
+from typing import List, Optional
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -59,10 +60,15 @@ class StreamlitChatView:
             self.knowledge = st.selectbox("Select a knowledge folder:", knowledge_names)
         self.user_query = st.chat_input(placeholder="Ask me anything!")
 
-    def add_message(self, message: str, author: str):
+    def add_message(self, message: str, author: str, context: Optional[List] = None):
         assert author in ["user", "assistant"]
         with st.chat_message(author):
             st.markdown(message)
+            if context is not None:
+                with st.expander("Context", expanded=False):
+                    for doc in context:
+                        st.markdown(f"**{doc['metadata']['source']}**")
+                        st.text(doc['page_content'])
 
     def add_message_stream(self, author: str):
         assert author in ["user", "assistant"]
@@ -71,7 +77,8 @@ class StreamlitChatView:
 
 def setup_memory():
     msgs = StreamlitChatMessageHistory(key="langchain_messages")
-    return ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, return_messages=True)
+    return ConversationBufferMemory(memory_key="chat_history", output_key="response", chat_memory=msgs,
+                                    return_messages=True)
 
 
 def setup_chain(llm, memory, inject_knowledge, system_message, context_prompt, retriever):
@@ -92,7 +99,7 @@ def setup_chain(llm, memory, inject_knowledge, system_message, context_prompt, r
             verbose=True)
 
 
-STREAM = True
+STREAM = False
 
 # Setup
 load_dotenv()
@@ -123,5 +130,5 @@ if view.user_query:
         st_callback = view.add_message_stream("assistant")
         chain.run({"question": view.user_query}, callbacks=[st_callback])
     else:
-        response = chain.run({"question": view.user_query})
-        view.add_message(response, "assistant")
+        response = chain({"question": view.user_query})
+        view.add_message(response['response'], "assistant", context=response['context'])

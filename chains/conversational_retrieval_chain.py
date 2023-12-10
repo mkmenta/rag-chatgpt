@@ -27,7 +27,8 @@ class ConversationalRetrievalChain(Chain):
     context_prompt: str = TEMPLATE
     """Prompt object to use."""
     llm: BaseLanguageModel
-    output_key: str = "text"  #: :meta private:
+    output_key: str = "response"  #: :meta private:
+    output_context_key: str = "context"  #: :meta private:
     retriever: BaseRetriever
     # docs_combiner: BaseCombineDocumentsChain = StuffDocumentsChain()
 
@@ -92,8 +93,8 @@ class ConversationalRetrievalChain(Chain):
         # callbacks that are registered for that event.
         # if run_manager:
         #     run_manager.on_text("Log something about this run")
-
-        return {self.output_key: response.generations[0][0].text}
+        return {self.output_key: response.generations[0][0].text,
+                self.output_context_key: [d.dict() for d in docs]}
 
     async def _acall(
         self,
